@@ -45,7 +45,7 @@
 
             try {
                 // IMPORTANT: This URL MUST be your public Render URL
-                const response = await fetch('/query', {
+                const response = await fetch('/submit_job', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -61,13 +61,7 @@
                 const result = await response.json();
                 
                 // Display the formatted result from the agent
-                responseArea.innerHTML = `
-                    <div class="response-box">
-                        <strong>Recommendation:</strong> ${result.recommendation}
-                        <strong>APY:</strong> ${result.apy}%
-                        <strong>Rationale:</strong> ${result.rationale}
-                    </div>
-                `;
+                responseArea.innerHTML = `<p class="status-text">${result.message}</p>`;
 
             } catch (error) {
                 console.error('Error:', error);

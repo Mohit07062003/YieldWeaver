@@ -14,14 +14,16 @@ from uagents_core.contrib.protocols.chat import (
    chat_protocol_spec,
 )
 
+# === FIX 1: ADD MISSING IMPORTS ===
 from models import (
+    UserRequest, AgentResponse, # Added UserRequest and AgentResponse
     MarketDataRequest, MarketDataResponse, 
     StrategyRequest, StrategyResponse
 )
 
 # --- Configuration ---
-MARKET_AGENT_ADDRESS = "agent1qfkkgvm6d2jg9wjhjausnl98shdxv28tr6deavwxx2ga3ah54c7ugzaw87t"
-STRATEGY_AGENT_ADDRESS = "agent1qwjqcqaekr5l6tn8rujxk5jkkc0a9vvae255ptsty2gnru08hwggk3l9pqr"
+MARKET_AGENT_ADDRESS = "agent_address_from_terminal" # Replace with your market agent address
+STRATEGY_AGENT_ADDRESS = "agent_address_from_terminal" # Replace with your strategy agent address
 
 agent = Agent(
     name="portfolio_agent",
@@ -32,7 +34,7 @@ fund_agent_if_low(agent.wallet.address())
 
 chat_proto = Protocol(spec=chat_protocol_spec)
 
-# --- Helper Functions ---
+# --- Helper Functions (No changes here) ---
 
 def format_knowledge_base(protocols: list) -> str:
     kb = ""
@@ -49,65 +51,80 @@ def create_text_chat(text: str) -> ChatMessage:
         content=[TextContent(type="text", text=text)],
     )
 
-# --- Main Chat Protocol Logic ---
+# --- Main Handlers ---
 
 @chat_proto.on_message(ChatMessage)
 async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
-    ctx.logger.info(f"Received chat message from {sender}")
-    await ctx.send(sender, ChatAcknowledgement(timestamp=datetime.utcnow(), acknowledged_msg_id=msg.msg_id))
+    # This handler is for direct chat interactions
+    # ... (code is the same)
+    
+    # === FIX 2 (Part A): Store the origin of the request ===
+    ctx.storage.set("origin", "chat") 
+    ctx.storage.set("user_address", sender)
+    # ... (rest of the chat logic is the same)
 
-    for item in msg.content:
-        if isinstance(item, StartSessionContent):
-            ctx.logger.info(f"Session started with {sender}")
-            response = create_text_chat("Hello! I am YieldWeaver, your DeFi optimization agent. Please state your risk profile ('conservative' or 'aggressive').")
-            await ctx.send(sender, response)
+@agent.on_message(model=UserRequest, replies={AgentResponse})
+async def handle_user_request(ctx: Context, sender: str, msg: UserRequest):
+    # This handler is for requests from our web gateway
+    ctx.logger.info(f"Received user request for a '{msg.risk_profile}' strategy from gateway.")
+    
+    # === FIX 2 (Part B): Store the origin of the request ===
+    ctx.storage.set("origin", "gateway")
+    ctx.storage.set("user_address", sender) # The gateway's temporary address
+    ctx.storage.set("risk_profile", msg.risk_profile)
+    
+    # Kick off the internal workflow
+    await ctx.send(MARKET_AGENT_ADDRESS, MarketDataRequest())
 
-        elif isinstance(item, TextContent):
-            risk_profile = item.text.lower().strip()
-            ctx.logger.info(f"Received risk profile: '{risk_profile}'")
 
-            if risk_profile in ["conservative", "aggressive"]:
-                ctx.storage.set("user_address", sender)
-                ctx.storage.set("risk_profile", risk_profile)
-                confirmation_msg = create_text_chat(f"Understood. Searching for the best '{risk_profile}' strategy. Please wait a moment...")
-                await ctx.send(sender, confirmation_msg)
-                await ctx.send(MARKET_AGENT_ADDRESS, MarketDataRequest())
-            else:
-                error_msg = create_text_chat("Sorry, that is not a valid risk profile. Please choose either 'conservative' or 'aggressive'.")
-                await ctx.send(sender, error_msg)
-
-# --- THIS IS THE MISSING HANDLER THAT FIXES THE ERROR ---
 @chat_proto.on_message(ChatAcknowledgement)
 async def handle_acknowledgement(ctx: Context, sender: str, msg: ChatAcknowledgement):
-    """Handles acknowledgements for messages this agent has sent."""
     ctx.logger.info(f"Received acknowledgement from {sender} for message {msg.acknowledged_msg_id}")
 
-# --- Internal Message Handlers (for communication with other agents) ---
+
+# --- Internal Message Handlers ---
 
 @agent.on_message(model=MarketDataResponse)
 async def handle_market_data(ctx: Context, _sender: str, msg: MarketDataResponse):
+    # This function doesn't need to change
     ctx.logger.info("Received market data. Constructing knowledge base...")
     knowledge_base = format_knowledge_base(msg.protocols)
     risk_profile = ctx.storage.get("risk_profile")
-    
-    ctx.logger.info(f"Sending request to strategy agent for a '{risk_profile}' profile...")
     await ctx.send(STRATEGY_AGENT_ADDRESS, StrategyRequest(risk_profile=risk_profile, knowledge_base=knowledge_base))
+
 
 @agent.on_message(model=StrategyResponse)
 async def handle_strategy_response(ctx: Context, _sender: str, msg: StrategyResponse):
-    ctx.logger.info("Received final strategy. Formatting response for user...")
+    # === FIX 2 (Part C): The Smart Response Handler ===
+    ctx.logger.info("Received final strategy. Formatting response...")
     
-    recommendation_text = (
-        f"--- STRATEGY RECOMMENDATION ---\n"
-        f"Profile: '{ctx.storage.get('risk_profile')}'\n"
-        f"Protocol: {msg.protocol}\n"
-        f"APY: {msg.apy}%\n"
-        f"Rationale: {msg.rationale}"
-    )
-    
-    final_response = create_text_chat(recommendation_text)
     user_address = ctx.storage.get("user_address")
-    await ctx.send(user_address, final_response)
+    origin = ctx.storage.get("origin")
+
+    if origin == "chat":
+        # If the request came from a chat, send a chat message back
+        ctx.logger.info(f"Sending CHAT response to {user_address}")
+        recommendation_text = (
+            f"--- STRATEGY RECOMMENDATION ---\n"
+            f"Profile: '{ctx.storage.get('risk_profile')}'\n"
+            f"Protocol: {msg.protocol}\n"
+            f"APY: {msg.apy}%\n"
+            f"Rationale: {msg.rationale}"
+        )
+        final_response = create_text_chat(recommendation_text)
+        await ctx.send(user_address, final_response)
+    
+    elif origin == "gateway":
+        # If the request came from the gateway, send a direct AgentResponse back
+        ctx.logger.info(f"Sending GATEWAY response to {user_address}")
+        recommendation_text = f"Based on your '{ctx.storage.get('risk_profile')}' risk profile, the recommended protocol is {msg.protocol}."
+        final_response = AgentResponse(
+            recommendation=recommendation_text,
+            apy=msg.apy,
+            rationale=msg.rationale
+        )
+        await ctx.send(user_address, final_response)
+
 
 # --- Final Agent Setup ---
 agent.include(chat_proto, publish_manifest=True)

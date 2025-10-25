@@ -1,46 +1,43 @@
-# File: gateway.py
-
 from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles # Import the StaticFiles class
-from uagents.query import query
-from models import UserRequest, AgentResponse
+from fastapi.staticfiles import StaticFiles
+import requests # Use the standard requests library
+from models import UserRequest
 from pydantic import BaseModel
 import uvicorn
 import os
 
-# --- Configuration ---
 PORTFOLIO_AGENT_ADDRESS = "agent1q287dwsu2ng5zwfx9uxa7w3uc66dmh0p6zf0kccurlzdm00a2d86svg5zwf"
+# The Bureau is running on the same machine, on its internal port.
+AGENT_BUREAU_URL = "http://127.0.0.1:8001/submit" 
 
 app = FastAPI()
+app.mount("/", StaticFiles(directory="frontend", html=True), name="static")
 
-# --- API Endpoint ---
-# Our API endpoint must be defined *before* the static file mount.
-@app.post("/query", response_model=AgentResponse)
-async def agent_query(request: UserRequest):
+@app.post("/submit_job")
+async def submit_job(request: UserRequest):
+    """
+    This endpoint reliably submits a job to the agent bureau and returns immediately.
+    """
     try:
-        print(f"Forwarding request for '{request.risk_profile}' to agent...")
-        response = await query(
-            destination=PORTFOLIO_AGENT_ADDRESS,
-            message=request,
-            timeout=60.0
-        )
-        response_data = response.decode_payload()
-        print(f"Received final response from agent: {response_data}")
-        return AgentResponse(**response_data)
+        print(f"Submitting job for '{request.risk_profile}' to agent bureau...")
+        
+        # Manually construct the message payload for the Bureau
+        payload = {
+            "destination": PORTFOLIO_AGENT_ADDRESS,
+            "message": request.dict(),
+            "message_type": "UserRequest" # This must match the model on the agent
+        }
+
+        # Send the job to the Bureau's /submit endpoint
+        response = requests.post(AGENT_BUREAU_URL, json=payload, timeout=10.0)
+        response.raise_for_status() # Raise an error for bad status codes
+
+        return {"status": "success", "message": "Job successfully submitted. Please monitor agent logs for the result."}
+
     except Exception as e:
         print(f"An error occurred: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- THIS IS THE NEW PART ---
-# Mount the 'frontend' directory to serve static files.
-# The `html=True` argument tells FastAPI to serve `index.html` for the root path.
-app.mount("/", StaticFiles(directory="frontend", html=True), name="static")
-
-
 if __name__ == "__main__":
-    # === THIS IS THE CHANGE ===
-    # The gateway is our public server, so it MUST use Render's main PORT.
     port = int(os.environ.get("PORT", 8000))
-    
-    print(f"Starting gateway on PUBLIC port {port}")
     uvicorn.run(app, host="0.0.0.0", port=port)
