@@ -1,26 +1,27 @@
-import os # Import the os library at the top
+# File: main.py
+import os
 from uagents import Bureau
 from agents.portfolio_agent import agent as portfolio_agent
 from agents.market_agent import agent as market_agent
 from agents.strategy_agent import agent as strategy_agent
 
 if __name__ == "__main__":
-    # Get the port from the environment variable provided by Render, defaulting to 8000
+    # Get the port from the environment variable provided by Render
     port = int(os.environ.get("PORT", 8000))
 
-    # Create a Bureau and specify its endpoint using the dynamic port
-    bureau = Bureau(endpoint=f"http://0.0.0.0:{port}", port=port)
+    # Get the public URL from the environment variable provided by Render
+    # This is the crucial fix.
+    endpoint = os.environ.get("RENDER_EXTERNAL_URL", f"http://127.0.0.1:{port}")
 
-    # Add all three agents to the Bureau (no changes here)
-    print(f"Adding portfolio agent to bureau: {portfolio_agent.address}")
+    # Create a Bureau that binds to the internal port but advertises its public endpoint
+    bureau = Bureau(endpoint=endpoint, port=port)
+
+    print(f"Bureau is running on port {port} and advertising endpoint {endpoint}")
+
+    # Add agents (no changes here)
     bureau.add(portfolio_agent)
-
-    print(f"Adding market agent to bureau: {market_agent.address}")
     bureau.add(market_agent)
-
-    print(f"Adding strategy agent to bureau: {strategy_agent.address}")
     bureau.add(strategy_agent)
 
-    # Run the Bureau (no changes here)
-    print(f"Starting bureau with 3 agents on port {port}...")
+    # Run the Bureau
     bureau.run()
