@@ -35,5 +35,7 @@ async def run_query(request: QueryRequest):
         return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8001))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    # The Bureau runs on the main $PORT. The gateway will run on a fixed internal port.
+    internal_port = 8001
+    print(f"Starting gateway on internal port {internal_port}")
+    uvicorn.run(app, host="0.0.0.0", port=internal_port)
