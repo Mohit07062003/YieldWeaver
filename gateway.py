@@ -1,41 +1,42 @@
 # File: gateway.py
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+
+from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles # Import the StaticFiles class
 from uagents.query import query
-from pydantic import BaseModel
+from models import UserRequest, AgentResponse
+from pantic import BaseModel
 import uvicorn
 import os
 
-# Configuration - This must match the agent running on the same server
+# --- Configuration ---
 PORTFOLIO_AGENT_ADDRESS = "agent1q287dwsu2ng5zwfx9uxa7w3uc66dmh0p6zf0kccurlzdm00a2d86svg5zwf"
-AGENT_BUREAU_URL = "http://127.0.0.1:8000" # The gateway talks to the bureau locally
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-class QueryRequest(BaseModel):
-    risk_profile: str
-
-@app.post("/query")
-async def run_query(request: QueryRequest):
-    try:
-        # We don't have a direct query model, so we simulate a chat interaction
-        # This is a placeholder for a more robust query/response flow
-        # For the hackathon, this demonstrates the frontend connectivity
-        print(f"Received query for profile: {request.risk_profile}")
-        return {"status": "success", "message": f"Request for '{request.risk_profile}' profile sent to agent network. Please check agent logs."}
+# --- API Endpoint ---
+# Our API endpoint must be defined *before* the static file mount.
+@app.post("/query", response_model=AgentResponse)
+async def agent_query(request: UserRequest):
+    try
+        print(f"Forwarding request for '{request.risk_profile}' to agent...")
+        response = await query(
+            destination=PORTFOLIO_AGENT_ADDRESS,
+            message=request,
+            timeout=60.0
+        )
+        response_data = response.decode_payload()
+        print(f"Received final response from agent: {response_data}")
+        return AgentResponse(**response_data)
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        print(f"An error occurred: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- THIS IS THE NEW PART ---
+# Mount the 'frontend' directory to serve static files.
+# The `html=True` argument tells FastAPI to serve `index.html` for the root path.
+app.mount("/", StaticFiles(directory="frontend", html=True), name="static")
+
 
 if __name__ == "__main__":
-    # The Bureau runs on the main $PORT. The gateway will run on a fixed internal port.
-    internal_port = 8001
-    print(f"Starting gateway on internal port {internal_port}")
-    uvicorn.run(app, host="0.0.0.0", port=internal_port)
+    # The gateway runs on an internal port and is served by the run.sh script.
+    uvicorn.run(app, host="0.0.0.0", port=8001)
