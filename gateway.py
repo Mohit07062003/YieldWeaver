@@ -17,7 +17,7 @@ app = FastAPI()
 # Our API endpoint must be defined *before* the static file mount.
 @app.post("/query", response_model=AgentResponse)
 async def agent_query(request: UserRequest):
-    try
+    try:
         print(f"Forwarding request for '{request.risk_profile}' to agent...")
         response = await query(
             destination=PORTFOLIO_AGENT_ADDRESS,
