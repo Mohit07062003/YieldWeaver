@@ -38,5 +38,9 @@ app.mount("/", StaticFiles(directory="frontend", html=True), name="static")
 
 
 if __name__ == "__main__":
-    # The gateway runs on an internal port and is served by the run.sh script.
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    # === THIS IS THE CHANGE ===
+    # The gateway is our public server, so it MUST use Render's main PORT.
+    port = int(os.environ.get("PORT", 8000))
+    
+    print(f"Starting gateway on PUBLIC port {port}")
+    uvicorn.run(app, host="0.0.0.0", port=port)
