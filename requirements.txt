@@ -1,3 +1,5 @@
 uagents
-hyperon[core]
 requests
+hyperon[core]
+fastapi
+uvicorn

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ASI-YieldWeaver</title>
+    <!-- Simple styling -->
+</head>
+<body>
+    <h1>ASI-YieldWeaver</h1>
+    <p>Select your risk profile to find the best DeFi yield.</p>
+    <select id="riskProfile">
+        <option value="conservative">Conservative</option>
+        <option value="aggressive">Aggressive</option>
+    </select>
+    <button onclick="sendRequest()">Query Agents</button>
+    <p><strong>Status:</strong> <span id="status">Idle</span></p>
+
+    <script>
+        async function sendRequest() {
+            const riskProfile = document.getElementById('riskProfile').value;
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = "Sending request to agent...";
+
+            // This URL will be your Render URL.
+            const response = await fetch('https://yieldweaver.onrender.com/query', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ risk_profile: riskProfile })
+            });
+            
+            const data = await response.json();
+            statusElement.textContent = data.message;
+        }
+    </script>
+</body>
+</html>
