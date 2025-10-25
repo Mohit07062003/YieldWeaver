@@ -1,0 +1,5 @@
+[market_agent]: 
+Starting agent with address: agent1q2dk880l6pmafpxqzpsg2u3jcm0u089g9wwpg4lqrfmsd65eteyfwqx6cxf
+
+[portfolio_agent]: Hello, my name is portfolio_agent
+INFO:     [portfolio_agent]: My address is: agent1qges5uxmv2h0ezx0rr4ajae6nz8mqy827pdp2wmlel9mthtm3ftxv96u2gz
