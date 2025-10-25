@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles # Import the StaticFiles class
 from uagents.query import query
 from models import UserRequest, AgentResponse
-from pantic import BaseModel
+from pydantic import BaseModel
 import uvicorn
 import os
 

@@ -3,3 +3,4 @@ requests
 hyperon[core]
 fastapi
 uvicorn
+pydantic
